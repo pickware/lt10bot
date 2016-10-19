@@ -14,7 +14,7 @@ class CheckMenuController extends Controller
     /**
      * @Route("/checkmenu")
      */
-    public function checkMenu(Request $request)
+    public function checkMenu()
     {
         $logger = $this->get('logger');
         $scraper = new MenuScraper($this->get('logger'));
@@ -24,7 +24,7 @@ class CheckMenuController extends Controller
             'plates' => $plates
         ]);
 
-        $menuPublisher = new MenuPublisher();
+        $menuPublisher = new MenuPublisher($logger);
         $menuPublisher->publishMenu($plates);
 
         return new Response(Response::HTTP_NO_CONTENT);

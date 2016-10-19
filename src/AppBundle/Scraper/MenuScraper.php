@@ -44,12 +44,10 @@ class MenuScraper
             ->filter('.day')
             ->reduce(function (Crawler $day) use (&$self) {
                 $date = $day->filter('p.date')->text();
-                $self->logger->info('extracted date: ' . $date);
                 return $date === static::REQUESTED_DATE;
             })
             ->filter('.menu')
             ->each(function (Crawler $plate, $plateIndex) use (&$self) {
-                $self->logger->info('processing plate ' . $plate->html());
                 $plateChildNodes = $plate->getNode(0)->childNodes;
                 if ($plateChildNodes->length <= 2) {
                     return false;
@@ -64,7 +62,6 @@ class MenuScraper
                     $text = trim($plateChildNodes->item($i)->textContent);
                     if ($text) {
                         $first = mb_substr($text, 0, 1);
-                        $this->logger->info("first = ${first}");
                         if (mb_substr($text, 0, 1) === '€') {
                             $plateResult['price'] = (float)mb_substr($text, 1);
                         } elseif (mb_substr($text, 0, 3) === 'by ') {
