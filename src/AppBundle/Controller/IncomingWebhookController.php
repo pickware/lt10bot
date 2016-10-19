@@ -15,10 +15,12 @@ class IncomingWebhookController extends Controller
     public function webhookAction(Request $request)
     {
         $logger = $this->get('logger');
+        $json = $request->getContent();
+
         $logger->info('Webhook request received:', [
             'method' => $request->getMethod(),
             'headers' => $request->headers,
-            'body' => $request->request
+            'body' => $json
         ]);
         return new Response(Response::HTTP_NO_CONTENT);
     }
