@@ -6,12 +6,15 @@ use AppBundle\Scraper\MenuScraper;
 use AppBundle\Telegram\MenuPublisher;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Route;
 use Symfony\Bundle\FrameworkBundle\Controller\Controller;
-use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 class CheckMenuController extends Controller
 {
     /**
+     * Scrapes tomorrow's menu from the LT10 website and sends it to Telegram.
+     * This route should be called once a day at 18:00.
+     *
+     * TODO add security token
      * @Route("/checkmenu")
      */
     public function checkMenu()

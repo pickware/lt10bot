@@ -6,6 +6,13 @@ namespace AppBundle\Telegram;
 use GuzzleHttp\Client;
 use Monolog\Logger;
 
+/**
+ * Class MenuPublisher
+ *
+ * Publishes a choice of plates to a Telegram group.
+ *
+ * @package AppBundle\Telegram
+ */
 class MenuPublisher
 {
     function __construct(Logger $logger)
@@ -27,10 +34,17 @@ class MenuPublisher
             $message .= "${plateNumber}. $description (gekocht von ${cook}). Preis: ${price} €.\n";
         }
         $message .= 'Wer möchte mitkommen?';
-        $response = $client->post('sendMessage',
+        $replyKeyboard = [
+            'keyboard' => [[
+                ['text' => 'Gericht 1'],
+                ['text' => 'Gericht 2']
+            ]]
+        ];
+        $client->post('sendMessage',
             ['json' => [
                 'chat_id' => getenv('TELEGRAM_CHAT_ID'),
-                'text' => $message
+                'text' => $message,
+                'reply_markup' => $replyKeyboard
             ]]);
     }
 }

@@ -10,6 +10,7 @@ use Symfony\Component\HttpFoundation\Response;
 class TelegramWebhookController extends Controller
 {
     /**
+     * This webhook endpoints receives all events (Messages, Bot added, ...) from Telegram.
      * @Route("/webhook")
      */
     public function webhookAction(Request $request)

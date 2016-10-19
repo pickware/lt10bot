@@ -6,6 +6,13 @@ namespace AppBundle\Scraper;
 use Goutte\Client;
 use Symfony\Component\DomCrawler\Crawler;
 
+/**
+ * Class MenuScraper
+ *
+ * Scrapes tomorrow's plates from the LT10 menu (http://kantine.lt10.de/menu).
+ *
+ * @package AppBundle\Scraper
+ */
 class MenuScraper
 {
     const ENDPOINT = 'http://kantine.lt10.de/menu';
@@ -16,63 +23,80 @@ class MenuScraper
         $this->logger = $logger;
     }
 
+    /**
+     * Do the scraping
+     * @return array
+     */
     function scrape()
     {
+        $this->client = new Client();
+        $this->login();
+        return $this->parseDay();
+    }
 
-        $client = new Client();
-        $crawler = $client->request('GET', static::ENDPOINT);
+    /**
+     * Login using the login form.
+     */
+    private function login()
+    {
+        $this->crawler = $this->client->request('GET', static::ENDPOINT);
+        $loginButton = $this->crawler->selectButton('login');
 
-        $loginButton = $crawler->selectButton('login');
-        $needsLogin = $loginButton->count() !== 0;
+        $loginForm = $loginButton->form();
+        $loginForm->setValues([
+            'u' => getenv('LT10_USER'),
+            'p' => getenv('LT10_PASSWORD')
+        ]);
+        $this->crawler = $this->client->submit($loginForm);
+    }
 
-        if ($needsLogin) {
-            $loginForm = $loginButton->form();
-            $loginForm->setValues([
-                'u' => getenv('LT10_USER'),
-                'p' => getenv('LT10_PASSWORD')
-            ]);
-            $menuCrawler = $client->submit($loginForm);
-            $this->logger->info('logged in.');
-        } else {
-            $this->logger->info('using previous session');
-            $menuCrawler = $crawler;
-        }
-
-        $self = $this;
-
-        return $menuCrawler
+    /**
+     * Finds and parses the correct day (i.e. tomorrow)
+     * @return array
+     */
+    private function parseDay()
+    {
+        return $this->crawler
             ->filter('.day')
-            ->reduce(function (Crawler $day) use (&$self) {
+            ->reduce(function (Crawler $day) {
                 $date = $day->filter('p.date')->text();
                 return $date === static::REQUESTED_DATE;
             })
             ->filter('.menu')
-            ->each(function (Crawler $plate, $plateIndex) use (&$self) {
-                $plateChildNodes = $plate->getNode(0)->childNodes;
-                if ($plateChildNodes->length <= 2) {
-                    return false;
-                }
-                $plateResult = [
-                    'description' => trim($plateChildNodes->item(1)->textContent),
-                    'tags' => []
-                ];
-
-                $tags = [];
-                for ($i = 3; $i < $plateChildNodes->length - 1; $i++) {
-                    $text = trim($plateChildNodes->item($i)->textContent);
-                    if ($text) {
-                        $first = mb_substr($text, 0, 1);
-                        if (mb_substr($text, 0, 1) === '€') {
-                            $plateResult['price'] = (float)mb_substr($text, 1);
-                        } elseif (mb_substr($text, 0, 3) === 'by ') {
-                            $plateResult['cook'] = mb_substr($text, 3);
-                        } else {
-                            $plateResult['tags'][] = trim($plateChildNodes->item($i)->textContent);
-                        }
-                    }
-                }
-                return $plateResult;
+            ->each(function(Crawler $plate) {
+                return $this->parsePlate($plate);
             });
     }
 
+    /**
+     * Parse description, cost, cooks and additional tags from a plate (i.e. div.menu html element)
+     * @param Crawler $plate
+     * @return array|bool
+     */
+    private function parsePlate(Crawler $plate)
+    {
+        $plateChildNodes = $plate->getNode(0)->childNodes;
+        if ($plateChildNodes->length <= 2) {
+            return false;
+        }
+
+        $result = [
+            'description' => trim($plateChildNodes->item(1)->textContent),
+            'tags' => []
+        ];
+
+        for ($i = 3; $i < $plateChildNodes->length - 1; $i++) {
+            $text = trim($plateChildNodes->item($i)->textContent);
+            if ($text) {
+                if (mb_substr($text, 0, 1) === '€') {
+                    $result['price'] = (float)mb_substr($text, 1);
+                } elseif (mb_substr($text, 0, 3) === 'by ') {
+                    $result['cook'] = mb_substr($text, 3);
+                } else {
+                    $result['tags'][] = trim($plateChildNodes->item($i)->textContent);
+                }
+            }
+        }
+        return $result;
+    }
 }
