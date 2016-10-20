@@ -54,7 +54,7 @@ class TelegramWebhookController extends Controller
             if (!$oldReservation) {
                 $notificationText = 'Okay, vielleicht beim nächsten Mal :)';
             } else {
-                $notificationText = 'Okay, ich habe dein Gericht abbestelt.';
+                $notificationText = 'Okay, ich habe dein Gericht abbestellt.';
                 $this->deleteReservation($oldReservation);
             }
         } else {
