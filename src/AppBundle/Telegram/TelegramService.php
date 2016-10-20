@@ -34,7 +34,7 @@ class TelegramService
         $message = "Morgen gibt es folgende Gerichte im LT10:\n";
         $buttons = [];
         foreach ($dishes as $index => $dish) {
-            $dishNumber = $index + 1;
+            $dishNumber = chr(ord('A') + $index);
             $description = $dish['description'];
             $cook = $dish['cook'];
             $price = number_format($dish['price'], 2);
