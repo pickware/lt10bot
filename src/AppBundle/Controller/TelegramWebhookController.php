@@ -197,16 +197,33 @@ class TelegramWebhookController extends Controller
         $lt10service->updateDishReservations($date, $dish, $numReservations);
     }
 
+    /**
+     * Find any existing reservations for a user.
+     * @param string $user the user for which to find reservations
+     * @param string $date the date on which to look for reservations
+     * @return Reservation|null the old reservation if existing, null otherwise
+     */
     private function findOldReservation($user, $date)
     {
         return $this->getDoctrine()->getRepository('AppBundle:Reservation')->findOldReservation($user, $date);
     }
 
+    /**
+     * Count how many people have reserved a dish on a particular day.
+     * @param string $date the date for which to check reservations
+     * @param string $dish the dish to count
+     * @return integer the number of reservations
+     */
     private function getNumberOfReservations($date, $dish)
     {
         return $this->getDoctrine()->getRepository('AppBundle:Reservation')->getNumberOfReservations($date, $dish);
     }
 
+    /**
+     * Handles a chat message received by the bot.
+     * @param string $text the text of the message
+     * @param string $chatId the id of the chat where the message was received
+     */
     private function handleMessage($text, $chatId) {
         $logger = $this->get('logger');
         $expectedChatId = getenv('TELEGRAM_CHAT_ID');

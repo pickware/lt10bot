@@ -11,7 +11,7 @@ class LT10ServiceException extends Exception {}
 /**
  * Class LT10Service
  *
- * Scrapes tomorrow's dishes from the LT10 menu (http://kantine.lt10.de/menu).
+ * Handles communication with the functionality of http://kantine.lt10.de/menus.
  *
  * @package AppBundle\Scraper
  */

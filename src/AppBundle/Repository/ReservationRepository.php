@@ -1,6 +1,7 @@
 <?php
 
 namespace AppBundle\Repository;
+use AppBundle\Entity\Reservation;
 
 /**
  * ReservationRepository
@@ -10,6 +11,13 @@ namespace AppBundle\Repository;
  */
 class ReservationRepository extends \Doctrine\ORM\EntityRepository
 {
+
+    /**
+     * Count how many people have reserved a dish on a particular day.
+     * @param string $date the date for which to check reservations
+     * @param string $dish the dish to count
+     * @return integer the number of reservations
+     */
     public function getNumberOfReservations($date, $dish)
     {
         $query = $this->createQueryBuilder('r')
@@ -22,6 +30,12 @@ class ReservationRepository extends \Doctrine\ORM\EntityRepository
         return $query->getSingleScalarResult();
     }
 
+    /**
+     * Find any existing reservations for a user.
+     * @param string $user the user for which to find reservations
+     * @param string $date the date on which to look for reservations
+     * @return Reservation|null the old reservation if existing, null otherwise
+     */
     public function findOldReservation($user, $date)
     {
         $query = $this->createQueryBuilder('r')

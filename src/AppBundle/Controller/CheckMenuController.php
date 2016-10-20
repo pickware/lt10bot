@@ -23,6 +23,9 @@ class CheckMenuController extends Controller
         return new Response(Response::HTTP_NO_CONTENT);
     }
 
+    /**
+     * Scrapes tomorrow's menu from the LT10 website and sends it to Telegram.
+     */
     public static function fetchAndShowMenu($logger) {
         $lt10service = new LT10Service($logger);
         $dishes = $lt10service->getDishesForTomorrow();
