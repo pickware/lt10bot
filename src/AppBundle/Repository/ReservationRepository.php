@@ -10,4 +10,26 @@ namespace AppBundle\Repository;
  */
 class ReservationRepository extends \Doctrine\ORM\EntityRepository
 {
+    public function getNumberOfReservations($date, $dish)
+    {
+        $query = $this->createQueryBuilder('r')
+            ->select('count(r.id)')
+            ->where('r.dish = :dish AND r.menuDate = :menuDate')
+            ->setParameter('menuDate', $date)
+            ->setParameter('dish', $dish)
+            ->getQuery();
+
+        return $query->getSingleScalarResult();
+    }
+
+    public function findOldReservation($user, $date)
+    {
+        $query = $this->createQueryBuilder('r')
+            ->where('r.userId = :userId AND r.menuDate = :menuDate')
+            ->setParameter('userId', $user)
+            ->setParameter('menuDate', $date)
+            ->getQuery();
+
+        return $query->setMaxResults(1)->getOneOrNullResult();
+    }
 }

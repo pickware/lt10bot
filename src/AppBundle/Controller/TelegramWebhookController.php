@@ -55,64 +55,67 @@ class TelegramWebhookController extends Controller
     {
         $logger = $this->get('logger');
         $user = $callbackQuery->from->id;
-        list($dish, $date) = explode('_', $callbackQuery->data);
-        $cancelDish = $dish === 'none';
-        if ($dish == 'none') {
-            $dish = null;
-        }
+
+        list($dish, $date) = $this->parseReservationToken($callbackQuery->data);
         $oldReservation = $this->findOldReservation($user, $date);
-        $notificationText = null;
-        if ($oldReservation) {
-            $logger->info("user ${user} updating reservation.", [
-                'oldReservation' => $oldReservation
-            ]);
-        }
 
         $today = (new DateTime('now'))->format('Y-m-d');
         if ($today >= $date) {
-            $logger->info("User ${user} tried to change an old reservation for ${date}.");
+            $logger->info("User ${user} tried to make, modify or cancel a reservation for ${date}, which is in the past.");
             return 'Ich kann die Reservierung jetzt nicht mehr ändern, sorry.';
         }
-        if ($cancelDish) {
-            $logger->info("user ${user} canceled their reservation for ${date}.");
-            if (!$oldReservation) {
-                return 'Okay, vielleicht beim nächsten Mal :)';
-            } else {
-                $this->deleteReservation($oldReservation);
-                return 'Okay, ich habe dein Gericht abbestellt.';
-            }
+
+        if (!$dish) {
+            return $this->handleCancellation($user, $date, $oldReservation);
         }
+        return $this->handleMakeOrUpdateReservation($user, $date, $dish, $oldReservation);
+    }
+
+    private function parseReservationToken($token)
+    {
+        list($dish, $date) = explode('_', $token);
+        if ($dish == 'none') {
+            $dish = null;
+        }
+        return [$dish, $date];
+    }
+
+    private function handleCancellation($user, $date, $oldReservation)
+    {
+        $this->get('logger')->info("user ${user} canceled their reservation for ${date}.");
+        if (!$oldReservation) {
+            return 'Okay, vielleicht beim nächsten Mal :)';
+        } else {
+            $this->deleteReservation($oldReservation);
+            return 'Okay, ich habe dein Gericht abbestellt.';
+        }
+    }
+
+    private function handleMakeOrUpdateReservation($user, $date, $dish, $oldReservation)
+    {
+        $logger = $this->get('logger');
         $logger->info("user ${user} wants to reserve dish ${dish} for ${date}.");
         $numberOfExistingReservations = $this->getNumberOfReservations($date, $dish);
+
         if ($numberOfExistingReservations >= static::MAX_RESERVATIONS) {
             $logger->warn("Max reservations reached for dish ${dish} on date ${date}.");
             return ('Sorry, das musst du manuell reservieren.');
         }
 
         if ($oldReservation && $oldReservation->getDish() != $dish) {
+            $oldDish = $oldReservation->getDish();
+            $logger->info("user ${user} is updating his reservation from ${oldDish} to ${dish} for ${date}.");
             $this->deleteReservation($oldReservation);
             $this->recordReservation($user, $date, $dish);
             return 'Okay, ich habe deine Reservierung aktualisiert!';
         }
+
         if ($oldReservation) {
             return 'Das hatte ich dir schon bestellt. Scheinst dich ja sehr darauf zu freuen! :)';
         }
+
         $this->recordReservation($user, $date, $dish);
         return 'Cool, dein Gericht ist bestellt!';
-    }
-
-    private function findOldReservation($user, $date)
-    {
-        $repository = $this->getDoctrine()
-            ->getRepository('AppBundle:Reservation');
-
-        $query = $repository->createQueryBuilder('r')
-            ->where('r.userId = :userId AND r.menuDate = :menuDate')
-            ->setParameter('userId', $user)
-            ->setParameter('menuDate', $date)
-            ->getQuery();
-
-        return $query->setMaxResults(1)->getOneOrNullResult();
     }
 
     private function recordReservation($user, $date, $dish)
@@ -142,18 +145,13 @@ class TelegramWebhookController extends Controller
         $lt10service->updateDishReservations($date, $dish, $numReservations);
     }
 
+    private function findOldReservation($user, $date)
+    {
+        return $this->getDoctrine()->getRepository('AppBundle:Reservation')->findOldReservation($user, $date);
+    }
+
     private function getNumberOfReservations($date, $dish)
     {
-        $repository = $this->getDoctrine()
-            ->getRepository('AppBundle:Reservation');
-
-        $query = $repository->createQueryBuilder('r')
-            ->select('count(r.id)')
-            ->where('r.dish = :dish AND r.menuDate = :menuDate')
-            ->setParameter('menuDate', $date)
-            ->setParameter('dish', $dish)
-            ->getQuery();
-
-        return $query->getSingleScalarResult();
+        return $this->getDoctrine()->getRepository('AppBundle:Reservation')->getNumberOfReservations($date, $dish);
     }
 }
