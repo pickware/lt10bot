@@ -41,7 +41,7 @@ class MenuPublisher
             $message .= "${dishNumber}. $description (gekocht von ${cook}). Preis: ${price} €.\n";
             $buttons[] = ['text' => "Gericht ${dishNumber}", 'callback_data' => "${dishNumber}_${tomorrow}"];
         }
-        $buttons[] = ['text' => 'Nein danke', 'callback_data' => "false"];
+        $buttons[] = ['text' => 'Nein danke', 'callback_data' => "none_${tomorrow}"];
         $message .= 'Wer möchte mitkommen?';
         $this->client->post('sendMessage',
             ['json' => [
@@ -51,13 +51,8 @@ class MenuPublisher
             ]]);
     }
 
-    function answerCallbackQuery($callbackQuery)
+    function answerCallbackQuery($callbackQuery, $notificationText)
     {
-        if ($callbackQuery->data == 'false') {
-            $notificationText = 'Okay - ich habe dein Gericht abbestelt.';
-        } else {
-            $notificationText = 'Cool - dein Gericht ist bestellt!';
-        }
         $body = [
             'callback_query_id' => (integer) $callbackQuery->id,
             'text' => $notificationText

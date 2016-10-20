@@ -1,5 +1,6 @@
 imports:
     - { resource: config.yml }
+#    - { resource: heroku_database.php }
 
 #doctrine:
 #    orm:
@@ -19,3 +20,14 @@ monolog:
             level: debug
         console:
             type:  console
+
+# Doctrine Configuration
+doctrine:
+    dbal:
+        driver:   pdo_pgsql
+        url: "%database_url%"
+        host: ~
+        port: ~
+        dbname: ~
+        user: ~
+        password: ~
