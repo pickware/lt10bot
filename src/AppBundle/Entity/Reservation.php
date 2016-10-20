@@ -124,5 +124,15 @@ class Reservation
     {
         return $this->dish;
     }
+
+    function __toString()
+    {
+        $id = $this->id;
+        $menuDate = $this->menuDate;
+        $userId = $this->userId;
+        $dish = $this->dish;
+        return "Reservation(id: ${id}, menuDate: ${menuDate}, userId: ${userId}, dish: ${dish})";
+    }
+
 }
 

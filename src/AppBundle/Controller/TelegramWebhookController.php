@@ -15,24 +15,29 @@ class TelegramWebhookController extends Controller
     /**
      * This webhook endpoints receives all events (Messages, Bot added, ...) from Telegram.
      * @Route("/webhook")
+     * @param Request $request
+     * @return Response
      */
     public function webhookAction(Request $request)
     {
-        $logger = $this->get('logger');
-        $json = $request->getContent();
-        $update = json_decode($json);
+        $this->logWebhookRequest($request);
 
-        $logger->info('Webhook request received:', [
-            'method' => $request->getMethod(),
-            'headers' => $request->headers
-        ]);
-
+        $update = json_decode($request->getContent());
         if (property_exists($update, 'callback_query')) {
             $this->handleDishChosen($update->callback_query);
         }
 
-        $logger->info(json_encode($update));
         return new Response(Response::HTTP_NO_CONTENT);
+    }
+
+    private function logWebhookRequest(Request $request)
+    {
+        $logger = $this->get('logger');
+        $logger->info('Webhook request received:', [
+            'method' => $request->getMethod(),
+            'headers' => $request->headers
+        ]);
+        $logger->info($request->getContent());
     }
 
     private function handleDishChosen($callbackQuery)
@@ -45,7 +50,7 @@ class TelegramWebhookController extends Controller
             $dish = null;
         }
         $oldReservation = $this->findOldReservation($user, $date);
-        $notificationText = 'Hab ich nicht kapiert :/';
+        $notificationText = null;
         if ($oldReservation) {
             $logger->info("user ${user} updating reservation.", [
                 'oldReservation' => $oldReservation
@@ -107,7 +112,7 @@ class TelegramWebhookController extends Controller
         $em = $this->getDoctrine()->getManager();
         $em->remove($oldReservation);
         $em->flush();
-        $this->updateReservations($oldReservation->date, $oldReservation->dish);
+        $this->updateReservations($oldReservation->getMenuDate(), $oldReservation->getDish());
     }
 
     private function updateReservations($date, $dish)
@@ -116,13 +121,13 @@ class TelegramWebhookController extends Controller
             ->getRepository('AppBundle:Reservation');
 
         $query = $repository->createQueryBuilder('r')
-            ->where('r.userId = :userId AND r.menuDate = :menuDate')
+            ->select('count(r.id)')
+            ->where('r.dish = :dish AND r.menuDate = :menuDate')
             ->setParameter('menuDate', $date)
             ->setParameter('dish', $dish)
-            ->count('r.id')
             ->getQuery();
 
-        $numReservations = $query->setMaxResults(1)->getOneOrNullResult();
+        $numReservations = $query->getSingleScalarResult();
         $lt10service = new LT10Service($this->get('logger'));
         $lt10service->updateDishReservations($date, $dish, $numReservations);
     }
