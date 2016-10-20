@@ -19,14 +19,18 @@ class MenuPublisher
     function __construct(Logger $logger)
     {
         $this->logger = $logger;
+        $telegramToken = getenv('TELEGRAM_BOT_TOKEN');
+        if (!$telegramToken) {
+            throw new Exception('TELEGRAM_BOT_TOKEN must be set');
+        }
+        $endpoint = "https://api.telegram.org/bot${telegramToken}/";
+        $this->client = new Client(['base_uri' => $endpoint]);
+
     }
 
     function publishMenu(array $dishes)
     {
         $tomorrow = (new DateTime('tomorrow'))->format('Y-m-d');
-        $telegram_token = getenv('TELEGRAM_BOT_TOKEN');
-        $endpoint = "https://api.telegram.org/bot${telegram_token}/";
-        $client = new Client(['base_uri' => $endpoint]);
         $message = "Morgen gibt es folgende Gerichte im LT10:\n";
         $buttons = [];
         foreach ($dishes as $index => $dish) {
@@ -39,11 +43,26 @@ class MenuPublisher
         }
         $buttons[] = ['text' => 'Nein danke', 'callback_data' => "false"];
         $message .= 'Wer möchte mitkommen?';
-        $client->post('sendMessage',
+        $this->client->post('sendMessage',
             ['json' => [
                 'chat_id' => getenv('TELEGRAM_CHAT_ID'),
                 'text' => $message,
                 'reply_markup' => ['inline_keyboard' => [$buttons]]
             ]]);
+    }
+
+    function answerCallbackQuery($callbackQuery)
+    {
+        if ($callbackQuery->data == 'false') {
+            $notificationText = 'Okay - ich habe dein Gericht abbestelt.';
+        } else {
+            $notificationText = 'Cool - dein Gericht ist bestellt!';
+        }
+        $body = [
+            'callback_query_id' => (integer) $callbackQuery->id,
+            'text' => $notificationText
+        ];
+        $this->client->post('answerCallbackQuery',
+            ['json' => $body]);
     }
 }
