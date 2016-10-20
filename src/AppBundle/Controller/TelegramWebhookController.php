@@ -42,6 +42,7 @@ class TelegramWebhookController extends Controller
 
     private function handleDishChosen($callbackQuery)
     {
+//        TODO refuse reservations (and changes) if today >= date
         $logger = $this->get('logger');
         $user = $callbackQuery->from->id;
         list($dish, $date) = explode('_', $callbackQuery->data);

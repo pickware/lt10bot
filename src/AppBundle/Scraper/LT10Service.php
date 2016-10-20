@@ -35,15 +35,29 @@ class LT10Service
         }
     }
 
+    /**
+     * Update the total number of reservations for a single dish
+     * @param $date the date of the reservation
+     * @param $dish the dish for which to change the number of reservations
+     * @param $numReservations how many reservations to make
+     */
     public function updateDishReservations($date, $dish, $numReservations)
     {
         $this->client = new Client();
         $this->login();
-        $this->logger->info("Updating reservations on ${date}: dish ${dish} is reserved ${numReservations} times.");
+        $submitButton = $this->crawler->selectButton('submit');
+        $reservationForm = $submitButton->form();
+        $this->logger->info('reservation form fields', $reservationForm->all());
+        $reservationForm->setValues([
+            "${date}_${dish}_count" => $numReservations
+        ]);
+        $resultCrawler = $this->client->submit($reservationForm);
+        $this->logger->info('Form result: ' . $resultCrawler->html());
+        $this->logger->info("Updated reservations on ${date}: dish ${dish} is reserved ${numReservations} times.");
     }
 
     /**
-     * Do the scraping
+     * Scrape tomorrow's dishes
      * @return array
      */
     public function getDishesForTomorrow()
@@ -60,13 +74,14 @@ class LT10Service
     {
         $this->crawler = $this->client->request('GET', static::ENDPOINT);
         $loginButton = $this->crawler->selectButton('login');
-
-        $loginForm = $loginButton->form();
-        $loginForm->setValues([
-            'u' => $this->userName,
-            'p' => $this->password
-        ]);
-        $this->crawler = $this->client->submit($loginForm);
+        if ($loginButton->count() !== 0) {
+            $loginForm = $loginButton->form();
+            $loginForm->setValues([
+                'u' => $this->userName,
+                'p' => $this->password
+            ]);
+            $this->crawler = $this->client->submit($loginForm);
+        }
     }
 
     /**
