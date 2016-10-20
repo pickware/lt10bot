@@ -2,8 +2,8 @@
 
 namespace AppBundle\Controller;
 
-use AppBundle\Scraper\MenuScraper;
-use AppBundle\Telegram\MenuPublisher;
+use AppBundle\Scraper\LT10Service;
+use AppBundle\Telegram\TelegramService;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Route;
 use Symfony\Bundle\FrameworkBundle\Controller\Controller;
 use Symfony\Component\HttpFoundation\Response;
@@ -20,16 +20,16 @@ class CheckMenuController extends Controller
     public function checkMenu()
     {
         $logger = $this->get('logger');
-        $scraper = new MenuScraper($this->get('logger'));
-        $dishes = $scraper->scrape();
+        $lt10service = new LT10Service($this->get('logger'));
+        $dishes = $lt10service->getDishesForTomorrow();
 
         $logger->info('Crawl result:', [
             'dishes' => $dishes
         ]);
 
         if (!empty($dishes)) {
-            $menuPublisher = new MenuPublisher($logger);
-            $menuPublisher->publishMenu($dishes);
+            $telegramService = new TelegramService($logger);
+            $telegramService->publishMenu($dishes);
         }
 
         return new Response(Response::HTTP_NO_CONTENT);

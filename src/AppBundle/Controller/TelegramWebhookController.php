@@ -3,7 +3,7 @@
 namespace AppBundle\Controller;
 
 use AppBundle\Entity\Reservation;
-use AppBundle\Telegram\MenuPublisher;
+use AppBundle\Telegram\TelegramService;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Route;
 use Symfony\Bundle\FrameworkBundle\Controller\Controller;
 use Symfony\Component\HttpFoundation\Request;
@@ -69,7 +69,7 @@ class TelegramWebhookController extends Controller
                 $this->recordReservation($user, $date, $dish);
             }
         }
-        $menuPublisher = new MenuPublisher($logger);
+        $menuPublisher = new TelegramService($logger);
         $menuPublisher->answerCallbackQuery($callbackQuery, $notificationText);
     }
 

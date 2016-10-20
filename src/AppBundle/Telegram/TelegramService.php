@@ -14,7 +14,7 @@ use Monolog\Logger;
  *
  * @package AppBundle\Telegram
  */
-class MenuPublisher
+class TelegramService
 {
     function __construct(Logger $logger)
     {

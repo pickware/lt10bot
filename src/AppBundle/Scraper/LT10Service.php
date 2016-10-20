@@ -8,13 +8,13 @@ use Goutte\Client;
 use Symfony\Component\DomCrawler\Crawler;
 
 /**
- * Class MenuScraper
+ * Class LT10Service
  *
  * Scrapes tomorrow's dishes from the LT10 menu (http://kantine.lt10.de/menu).
  *
  * @package AppBundle\Scraper
  */
-class MenuScraper
+class LT10Service
 {
     const ENDPOINT = 'http://kantine.lt10.de/menu';
     const REQUESTED_DATE = 'morgen';
@@ -35,11 +35,18 @@ class MenuScraper
         }
     }
 
+    public function updateDishReservations($date, $dish, $numReservations)
+    {
+        $this->client = new Client();
+        $this->login();
+        $this->logger->info("Updating reservations on ${date}: dish ${dish} is reserved ${numReservations} times.");
+    }
+
     /**
      * Do the scraping
      * @return array
      */
-    function scrape()
+    public function getDishesForTomorrow()
     {
         $this->client = new Client();
         $this->login();
