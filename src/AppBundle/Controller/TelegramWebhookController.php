@@ -35,6 +35,10 @@ class TelegramWebhookController extends Controller
         return new Response(Response::HTTP_NO_CONTENT);
     }
 
+    /**
+     * Logs a webhook request to the application log.
+     * @param Request $request the request to log
+     */
     private function logWebhookRequest(Request $request)
     {
         $logger = $this->get('logger');
@@ -45,6 +49,11 @@ class TelegramWebhookController extends Controller
         $logger->info($request->getContent());
     }
 
+    /**
+     * Handles when a user clicks on one of the menu options of the inline keyboard shown in the menu message.
+     * Then sends a confirmation of the callback query along with a notification message for the user.
+     * @param array $callbackQuery the callback query part of the webhook event
+     */
     private function handleReservation($callbackQuery)
     {
         $logger = $this->get('logger');
@@ -53,6 +62,11 @@ class TelegramWebhookController extends Controller
         $menuPublisher->answerCallbackQuery($callbackQuery, $notificationText);
     }
 
+    /**
+     * Decide which reservation case we have, i.e. reserve dish, change dish or cancel
+     * @param array $callbackQuery the callback query part of the webhook event
+     * @return string a notification message to show to the Telegram user
+     */
     private function handleReservationCase($callbackQuery)
     {
         $logger = $this->get('logger');
@@ -73,6 +87,11 @@ class TelegramWebhookController extends Controller
         return $this->handleMakeOrUpdateReservation($user, $date, $dish, $oldReservation);
     }
 
+    /**
+     * Takes a reservation token of the form ${dish}_${date} and parses it.
+     * @param string $token the token to parse
+     * @return array an array [dish, date], where dish is null if we have a cancellation
+     */
     private function parseReservationToken($token)
     {
         list($dish, $date) = explode('_', $token);
@@ -82,6 +101,13 @@ class TelegramWebhookController extends Controller
         return [$dish, $date];
     }
 
+    /**
+     * Cancel a dish reservation.
+     * @param string $user the user who wants to cancel their reservation
+     * @param string $date the date for which to cancel
+     * @param Reservation $oldReservation the old reservation entity from the database
+     * @return string a notification to show to the Telegram user
+     */
     private function handleCancellation($user, $date, $oldReservation)
     {
         $this->get('logger')->info("user ${user} canceled their reservation for ${date}.");
@@ -93,6 +119,14 @@ class TelegramWebhookController extends Controller
         }
     }
 
+    /**
+     * Make a new reservation or change the dish of an existing reservation.
+     * @param string $user the user who wants to change their reservation
+     * @param string $date the date for which to change the reservation
+     * @param string $dish the new dish to set
+     * @param Reservation $oldReservation the old reservation entity from the database
+     * @return string a notification to show to the Telegram user
+     */
     private function handleMakeOrUpdateReservation($user, $date, $dish, $oldReservation)
     {
         $logger = $this->get('logger');
@@ -120,6 +154,12 @@ class TelegramWebhookController extends Controller
         return 'Cool, dein Gericht ist bestellt!';
     }
 
+    /**
+     * Saves a new reservation to the database.
+     * @param string $user the user who is reserving
+     * @param string $date the date of the reservation
+     * @param string $dish the reserved dish
+     */
     private function recordReservation($user, $date, $dish)
     {
         $reservation = new Reservation();
@@ -132,6 +172,10 @@ class TelegramWebhookController extends Controller
         $this->updateReservations($date, $dish);
     }
 
+    /**
+     * Delete a reservation
+     * @param Reservation $oldReservation the reservation to delete
+     */
     private function deleteReservation($oldReservation)
     {
         $em = $this->getDoctrine()->getManager();
@@ -140,6 +184,12 @@ class TelegramWebhookController extends Controller
         $this->updateReservations($oldReservation->getMenuDate(), $oldReservation->getDish());
     }
 
+    /**
+     * Checks the current reservation total and calls the LT10 service to update this.
+     * @param string $date the date for which to update the number of reservations
+     * @param string $dish the dish for which to update
+     * @throws \AppBundle\Scraper\LT10ServiceException
+     */
     private function updateReservations($date, $dish)
     {
         $numReservations = $this->getNumberOfReservations($date, $dish);
