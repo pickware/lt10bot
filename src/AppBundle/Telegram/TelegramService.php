@@ -22,6 +22,10 @@ class TelegramService
         if (!$telegramToken) {
             throw new Exception('TELEGRAM_BOT_TOKEN must be set');
         }
+        $this->chatId = getenv('TELEGRAM_CHAT_ID');
+        if (!$this->chatId) {
+            throw new Exception('TELEGRAM_CHAT_ID must be set');
+        }
         $endpoint = "https://api.telegram.org/bot${telegramToken}/";
         $this->client = new Client(['base_uri' => $endpoint]);
 
@@ -44,7 +48,7 @@ class TelegramService
         $message .= 'Wer möchte mitkommen?';
         $this->client->post('sendMessage',
             ['json' => [
-                'chat_id' => getenv('TELEGRAM_CHAT_ID'),
+                'chat_id' => $this->chatId,
                 'text' => $message,
                 'reply_markup' => ['inline_keyboard' => [$buttons]]
             ]]);

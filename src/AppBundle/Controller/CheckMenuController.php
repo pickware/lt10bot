@@ -19,8 +19,12 @@ class CheckMenuController extends Controller
      */
     public function checkMenu()
     {
-        $logger = $this->get('logger');
-        $lt10service = new LT10Service($this->get('logger'));
+        static::fetchAndShowMenu($this->get('logger'));
+        return new Response(Response::HTTP_NO_CONTENT);
+    }
+
+    public static function fetchAndShowMenu($logger) {
+        $lt10service = new LT10Service($logger);
         $dishes = $lt10service->getDishesForTomorrow();
 
         $logger->info('Crawl result:', [
@@ -31,7 +35,5 @@ class CheckMenuController extends Controller
             $telegramService = new TelegramService($logger);
             $telegramService->publishMenu($dishes);
         }
-
-        return new Response(Response::HTTP_NO_CONTENT);
     }
 }

@@ -28,6 +28,8 @@ class TelegramWebhookController extends Controller
         $update = json_decode($request->getContent());
         if (property_exists($update, 'callback_query')) {
             $this->handleReservation($update->callback_query);
+        } else if (property_exists($update, 'message') && property_exists($update->message, 'chat')) {
+            $this->handleMessage($update->message->text, $update->message->chat->id);
         }
 
         return new Response(Response::HTTP_NO_CONTENT);
@@ -153,5 +155,20 @@ class TelegramWebhookController extends Controller
     private function getNumberOfReservations($date, $dish)
     {
         return $this->getDoctrine()->getRepository('AppBundle:Reservation')->getNumberOfReservations($date, $dish);
+    }
+
+    private function handleMessage($text, $chatId) {
+        $logger = $this->get('logger');
+        $expectedChatId = getenv('TELEGRAM_CHAT_ID');
+        if ($chatId != $expectedChatId) {
+            $logger->warn("Command received from illegal chat {$chatId} (expected: ${expectedChatId}).");
+            return;
+        }
+        $logger->info("Processing message ${text}.");
+        if ($text === '/menu' || $text === '/menu@LT10Bot') {
+            $logger->warn("Command received from illegal chat {$chatId}.");
+            $logger->info("Menu requested in chat {$chatId}.");
+            CheckMenuController::fetchAndShowMenu($logger);
+        }
     }
 }
