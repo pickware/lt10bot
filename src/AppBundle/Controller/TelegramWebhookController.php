@@ -3,6 +3,7 @@
 namespace AppBundle\Controller;
 
 use AppBundle\Entity\Reservation;
+use AppBundle\Scraper\LT10Service;
 use AppBundle\Telegram\TelegramService;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Route;
 use Symfony\Bundle\FrameworkBundle\Controller\Controller;
@@ -38,10 +39,11 @@ class TelegramWebhookController extends Controller
     {
         $logger = $this->get('logger');
         $user = $callbackQuery->from->id;
-        $parts = explode('_', $callbackQuery->data);
-        $dish = $parts[0];
-        $date = $parts[1];
+        list($dish, $date) = explode('_', $callbackQuery->data);
         $cancelDish = $dish === 'none';
+        if ($dish == 'none') {
+            $dish = null;
+        }
         $oldReservation = $this->findOldReservation($user, $date);
         $notificationText = 'Hab ich nicht kapiert :/';
         if ($oldReservation) {
@@ -62,6 +64,7 @@ class TelegramWebhookController extends Controller
             if ($oldReservation && $oldReservation->getDish() != $dish) {
                 $notificationText = 'Okay, ich habe deine Reservierung aktualisiert!';
                 $this->deleteReservation($oldReservation);
+                $this->recordReservation($user, $date, $dish);
             } elseif ($oldReservation) {
                 $notificationText = 'Das hatte ich dir schon bestellt. Scheinst dich ja sehr darauf zu freuen! :)';
             } else {
@@ -96,6 +99,7 @@ class TelegramWebhookController extends Controller
         $em = $this->getDoctrine()->getManager();
         $em->persist($reservation);
         $em->flush();
+        $this->updateReservations($date, $dish);
     }
 
     private function deleteReservation($oldReservation)
@@ -103,5 +107,23 @@ class TelegramWebhookController extends Controller
         $em = $this->getDoctrine()->getManager();
         $em->remove($oldReservation);
         $em->flush();
+        $this->updateReservations($oldReservation->date, $oldReservation->dish);
+    }
+
+    private function updateReservations($date, $dish)
+    {
+        $repository = $this->getDoctrine()
+            ->getRepository('AppBundle:Reservation');
+
+        $query = $repository->createQueryBuilder('r')
+            ->where('r.userId = :userId AND r.menuDate = :menuDate')
+            ->setParameter('menuDate', $date)
+            ->setParameter('dish', $dish)
+            ->count('r.id')
+            ->getQuery();
+
+        $numReservations = $query->setMaxResults(1)->getOneOrNullResult();
+        $lt10service = new LT10Service($this->get('logger'));
+        $lt10service->updateDishReservations($date, $dish, $numReservations);
     }
 }
