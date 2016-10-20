@@ -2,7 +2,6 @@
 
 namespace AppBundle\Telegram;
 
-
 use DateTime;
 use GuzzleHttp\Client;
 use Monolog\Logger;
@@ -54,7 +53,7 @@ class TelegramService
     function answerCallbackQuery($callbackQuery, $notificationText)
     {
         $body = [
-            'callback_query_id' => (integer) $callbackQuery->id,
+            'callback_query_id' => (integer)$callbackQuery->id,
             'text' => $notificationText
         ];
         $this->client->post('answerCallbackQuery',

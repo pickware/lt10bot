@@ -2,6 +2,7 @@
 
 namespace AppBundle\Controller;
 
+use DateTime;
 use AppBundle\Entity\Reservation;
 use AppBundle\Scraper\LT10Service;
 use AppBundle\Telegram\TelegramService;
@@ -12,6 +13,8 @@ use Symfony\Component\HttpFoundation\Response;
 
 class TelegramWebhookController extends Controller
 {
+    const MAX_RESERVATIONS = 5;
+
     /**
      * This webhook endpoints receives all events (Messages, Bot added, ...) from Telegram.
      * @Route("/webhook")
@@ -24,7 +27,7 @@ class TelegramWebhookController extends Controller
 
         $update = json_decode($request->getContent());
         if (property_exists($update, 'callback_query')) {
-            $this->handleDishChosen($update->callback_query);
+            $this->handleReservation($update->callback_query);
         }
 
         return new Response(Response::HTTP_NO_CONTENT);
@@ -40,9 +43,16 @@ class TelegramWebhookController extends Controller
         $logger->info($request->getContent());
     }
 
-    private function handleDishChosen($callbackQuery)
+    private function handleReservation($callbackQuery)
     {
-//        TODO refuse reservations (and changes) if today >= date
+        $logger = $this->get('logger');
+        $notificationText = $this->handleReservationCase($callbackQuery);
+        $menuPublisher = new TelegramService($logger);
+        $menuPublisher->answerCallbackQuery($callbackQuery, $notificationText);
+    }
+
+    private function handleReservationCase($callbackQuery)
+    {
         $logger = $this->get('logger');
         $user = $callbackQuery->from->id;
         list($dish, $date) = explode('_', $callbackQuery->data);
@@ -57,29 +67,38 @@ class TelegramWebhookController extends Controller
                 'oldReservation' => $oldReservation
             ]);
         }
+
+        $today = (new DateTime('now'))->format('Y-m-d');
+        if ($today >= $date) {
+            $logger->info("User ${user} tried to change an old reservation for ${date}.");
+            return 'Ich kann die Reservierung jetzt nicht mehr ändern, sorry.';
+        }
         if ($cancelDish) {
             $logger->info("user ${user} canceled their reservation for ${date}.");
             if (!$oldReservation) {
-                $notificationText = 'Okay, vielleicht beim nächsten Mal :)';
+                return 'Okay, vielleicht beim nächsten Mal :)';
             } else {
-                $notificationText = 'Okay, ich habe dein Gericht abbestellt.';
                 $this->deleteReservation($oldReservation);
-            }
-        } else {
-            $logger->info("user ${user} reserved dish ${dish} for ${date}.");
-            if ($oldReservation && $oldReservation->getDish() != $dish) {
-                $notificationText = 'Okay, ich habe deine Reservierung aktualisiert!';
-                $this->deleteReservation($oldReservation);
-                $this->recordReservation($user, $date, $dish);
-            } elseif ($oldReservation) {
-                $notificationText = 'Das hatte ich dir schon bestellt. Scheinst dich ja sehr darauf zu freuen! :)';
-            } else {
-                $notificationText = 'Cool, dein Gericht ist bestellt!';
-                $this->recordReservation($user, $date, $dish);
+                return 'Okay, ich habe dein Gericht abbestellt.';
             }
         }
-        $menuPublisher = new TelegramService($logger);
-        $menuPublisher->answerCallbackQuery($callbackQuery, $notificationText);
+        $logger->info("user ${user} wants to reserve dish ${dish} for ${date}.");
+        $numberOfExistingReservations = $this->getNumberOfReservations($date, $dish);
+        if ($numberOfExistingReservations >= static::MAX_RESERVATIONS) {
+            $logger->warn("Max reservations reached for dish ${dish} on date ${date}.");
+            return ('Sorry, das musst du manuell reservieren.');
+        }
+
+        if ($oldReservation && $oldReservation->getDish() != $dish) {
+            $this->deleteReservation($oldReservation);
+            $this->recordReservation($user, $date, $dish);
+            return 'Okay, ich habe deine Reservierung aktualisiert!';
+        }
+        if ($oldReservation) {
+            return 'Das hatte ich dir schon bestellt. Scheinst dich ja sehr darauf zu freuen! :)';
+        }
+        $this->recordReservation($user, $date, $dish);
+        return 'Cool, dein Gericht ist bestellt!';
     }
 
     private function findOldReservation($user, $date)
@@ -118,6 +137,13 @@ class TelegramWebhookController extends Controller
 
     private function updateReservations($date, $dish)
     {
+        $numReservations = $this->getNumberOfReservations($date, $dish);
+        $lt10service = new LT10Service($this->get('logger'));
+        $lt10service->updateDishReservations($date, $dish, $numReservations);
+    }
+
+    private function getNumberOfReservations($date, $dish)
+    {
         $repository = $this->getDoctrine()
             ->getRepository('AppBundle:Reservation');
 
@@ -128,8 +154,6 @@ class TelegramWebhookController extends Controller
             ->setParameter('dish', $dish)
             ->getQuery();
 
-        $numReservations = $query->getSingleScalarResult();
-        $lt10service = new LT10Service($this->get('logger'));
-        $lt10service->updateDishReservations($date, $dish, $numReservations);
+        return $query->getSingleScalarResult();
     }
 }

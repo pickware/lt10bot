@@ -2,10 +2,11 @@
 
 namespace AppBundle\Scraper;
 
-
 use Exception;
 use Goutte\Client;
 use Symfony\Component\DomCrawler\Crawler;
+
+class LT10ServiceException extends Exception {}
 
 /**
  * Class LT10Service
@@ -43,16 +44,17 @@ class LT10Service
      */
     public function updateDishReservations($date, $dish, $numReservations)
     {
+        if ($numReservations >= 5) {
+            throw new LT10ServiceException("Maximum number of reservations exceeded.");
+        }
         $this->client = new Client();
         $this->login();
         $submitButton = $this->crawler->selectButton('submit');
         $reservationForm = $submitButton->form();
-        $this->logger->info('reservation form fields', $reservationForm->all());
         $reservationForm->setValues([
             "${date}_${dish}_count" => $numReservations
         ]);
         $resultCrawler = $this->client->submit($reservationForm);
-        $this->logger->info('Form result: ' . $resultCrawler->html());
         $this->logger->info("Updated reservations on ${date}: dish ${dish} is reserved ${numReservations} times.");
     }
 
