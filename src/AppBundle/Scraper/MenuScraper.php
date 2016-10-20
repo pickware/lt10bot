@@ -3,13 +3,14 @@
 namespace AppBundle\Scraper;
 
 
+use Exception;
 use Goutte\Client;
 use Symfony\Component\DomCrawler\Crawler;
 
 /**
  * Class MenuScraper
  *
- * Scrapes tomorrow's plates from the LT10 menu (http://kantine.lt10.de/menu).
+ * Scrapes tomorrow's dishes from the LT10 menu (http://kantine.lt10.de/menu).
  *
  * @package AppBundle\Scraper
  */
@@ -17,10 +18,21 @@ class MenuScraper
 {
     const ENDPOINT = 'http://kantine.lt10.de/menu';
     const REQUESTED_DATE = 'morgen';
+    private $client;
+    private $userName;
+    private $password;
 
     function __construct($logger)
     {
         $this->logger = $logger;
+        $this->userName = getenv('LT10_USER');
+        $this->password = getenv('LT10_PASSWORD');
+        if (!$this->userName) {
+            throw new Exception('LT10_USER must be set');
+        }
+        if (!$this->password) {
+            throw new Exception('LT10_PASSWORD must be set');
+        }
     }
 
     /**
@@ -44,8 +56,8 @@ class MenuScraper
 
         $loginForm = $loginButton->form();
         $loginForm->setValues([
-            'u' => getenv('LT10_USER'),
-            'p' => getenv('LT10_PASSWORD')
+            'u' => $this->userName,
+            'p' => $this->password
         ]);
         $this->crawler = $this->client->submit($loginForm);
     }
@@ -63,37 +75,37 @@ class MenuScraper
                 return $date === static::REQUESTED_DATE;
             })
             ->filter('.menu')
-            ->each(function(Crawler $plate) {
-                return $this->parsePlate($plate);
+            ->each(function(Crawler $dish) {
+                return $this->parseDish($dish);
             });
     }
 
     /**
-     * Parse description, cost, cooks and additional tags from a plate (i.e. div.menu html element)
-     * @param Crawler $plate
+     * Parse description, cost, cooks and additional tags from a dish (i.e. div.menu html element)
+     * @param Crawler $dish
      * @return array|bool
      */
-    private function parsePlate(Crawler $plate)
+    private function parseDish(Crawler $dish)
     {
-        $plateChildNodes = $plate->getNode(0)->childNodes;
-        if ($plateChildNodes->length <= 2) {
+        $dishChildNodes = $dish->getNode(0)->childNodes;
+        if ($dishChildNodes->length <= 2) {
             return false;
         }
 
         $result = [
-            'description' => trim($plateChildNodes->item(1)->textContent),
+            'description' => trim($dishChildNodes->item(1)->textContent),
             'tags' => []
         ];
 
-        for ($i = 3; $i < $plateChildNodes->length - 1; $i++) {
-            $text = trim($plateChildNodes->item($i)->textContent);
+        for ($i = 3; $i < $dishChildNodes->length - 1; $i++) {
+            $text = trim($dishChildNodes->item($i)->textContent);
             if ($text) {
                 if (mb_substr($text, 0, 1) === '€') {
                     $result['price'] = (float)mb_substr($text, 1);
                 } elseif (mb_substr($text, 0, 3) === 'by ') {
                     $result['cook'] = mb_substr($text, 3);
                 } else {
-                    $result['tags'][] = trim($plateChildNodes->item($i)->textContent);
+                    $result['tags'][] = trim($dishChildNodes->item($i)->textContent);
                 }
             }
         }

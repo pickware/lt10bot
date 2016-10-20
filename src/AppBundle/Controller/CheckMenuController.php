@@ -21,14 +21,16 @@ class CheckMenuController extends Controller
     {
         $logger = $this->get('logger');
         $scraper = new MenuScraper($this->get('logger'));
-        $plates = $scraper->scrape();
+        $dishes = $scraper->scrape();
 
         $logger->info('Crawl result:', [
-            'plates' => $plates
+            'dishes' => $dishes
         ]);
 
-        $menuPublisher = new MenuPublisher($logger);
-        $menuPublisher->publishMenu($plates);
+        if (!empty($dishes)) {
+            $menuPublisher = new MenuPublisher($logger);
+            $menuPublisher->publishMenu($dishes);
+        }
 
         return new Response(Response::HTTP_NO_CONTENT);
     }
