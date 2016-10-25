@@ -21,38 +21,15 @@ class LunchReminderController extends Controller
     public function remindLunch()
     {
         $logger = $this->get('logger');
-//        FIXME change tomorrow -> today once this works
-        $dateString = (new DateTime('tomorrow'))->format('Y-m-d');
+        $dateString = (new DateTime('today'))->format('Y-m-d');
         $reservations = $this->getDoctrine()->getRepository('AppBundle:Reservation')->findBy([
             'menuDate' => $dateString
         ]);
         $logger->info("Sending reminders for reservations on ${dateString}.", ['reservations' => $reservations]);
-        $telegramService = new TelegramService($logger);
+        $telegramService = new TelegramService($logger, $this->getDoctrine()->getRepository('AppBundle:Reservation'));
         foreach ($reservations as $reservation) {
             $telegramService->sendLunchReminder($reservation);
         }
         return new Response(Response::HTTP_NO_CONTENT);
-    }
-
-    /**
-     * Scrapes tomorrow's menu from the LT10 website and sends it to Telegram.
-     * @param Logger $logger a logger to use
-     * @param null|string $dateString a string represenation of the date to fetch the menu for
-     */
-    public static function fetchAndShowMenu($logger, $dateString = null)
-    {
-        if (!$dateString) {
-            $dateString = 'today +1 Weekday'; // skip over weekends
-        }
-        $date = new DateTime($dateString);
-        $lt10Service = new LT10Service($logger);
-        $dishes = $lt10Service->getDishesForDate($date);
-
-        $logger->info('Crawl result:', [
-            'dishes' => $dishes
-        ]);
-
-        $telegramService = new TelegramService($logger);
-        $telegramService->publishMenu($dishes, $date);
     }
 }

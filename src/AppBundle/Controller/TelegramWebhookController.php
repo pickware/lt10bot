@@ -57,9 +57,11 @@ class TelegramWebhookController extends Controller
     private function handleReservation($callbackQuery)
     {
         $logger = $this->get('logger');
-        $notificationText = $this->handleReservationCase($callbackQuery);
-        $menuPublisher = new TelegramService($logger);
-        $menuPublisher->answerCallbackQuery($callbackQuery, $notificationText);
+        list($dish, $date, $numDishes) = $this->parseReservationToken($callbackQuery->data);
+        $notificationText = $this->handleReservationCase($callbackQuery, $dish, $date);
+        $telegramService = new TelegramService($logger, $this->getDoctrine()->getRepository('AppBundle:Reservation'));
+        $telegramService->answerCallbackQuery($callbackQuery, $notificationText);
+        $telegramService->updateReservationCounts($callbackQuery, $date, $numDishes);
     }
 
     /**
@@ -67,13 +69,12 @@ class TelegramWebhookController extends Controller
      * @param array $callbackQuery the callback query part of the webhook event
      * @return string a notification message to show to the Telegram user
      */
-    private function handleReservationCase($callbackQuery)
+    private function handleReservationCase($callbackQuery, $dish, $date)
     {
         $logger = $this->get('logger');
         $user = $callbackQuery->from->id;
         $userName = $callbackQuery->from->first_name;
 
-        list($dish, $date) = $this->parseReservationToken($callbackQuery->data);
         $oldReservation = $this->findOldReservation($user, $date);
 
         $lt10service = new LT10Service($this->get('logger'));
@@ -93,15 +94,15 @@ class TelegramWebhookController extends Controller
     /**
      * Takes a reservation token of the form ${dish}_${date} and parses it.
      * @param string $token the token to parse
-     * @return array an array [dish, date], where dish is null if we have a cancellation
+     * @return array an array [dish, date, numDishes], where dish is null if we have a cancellation
      */
     private function parseReservationToken($token)
     {
-        list($dish, $date) = explode('_', $token);
+        list($dish, $date, $numDishes) = explode('_', $token);
         if ($dish == 'none') {
             $dish = null;
         }
-        return [$dish, $date];
+        return [$dish, $date, $numDishes];
     }
 
     /**
@@ -247,7 +248,8 @@ class TelegramWebhookController extends Controller
             }
             $logger->warn("Command received from illegal chat {$chatId}.");
             $logger->info("Menu requested in chat {$chatId}.");
-            CheckMenuController::fetchAndShowMenu($logger, $date);
+            CheckMenuController::fetchAndShowMenu($logger, $this->getDoctrine()->getRepository('AppBundle:Reservation'),
+                $date);
         }
     }
 }

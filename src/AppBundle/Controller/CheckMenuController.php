@@ -24,7 +24,7 @@ class CheckMenuController extends Controller
         $logger = $this->get('logger');
         $dateString = $request->query->get('date') ?: null;
         $logger->info("date string passed in: ${dateString}.");
-        static::fetchAndShowMenu($logger, $dateString);
+        static::fetchAndShowMenu($logger, $this->getDoctrine()->getRepository('AppBundle:Reservation'), $dateString);
         return new Response(Response::HTTP_NO_CONTENT);
     }
 
@@ -33,7 +33,7 @@ class CheckMenuController extends Controller
      * @param Logger $logger a logger to use
      * @param null|string $dateString a string represenation of the date to fetch the menu for
      */
-    public static function fetchAndShowMenu($logger, $dateString = null) {
+    public static function fetchAndShowMenu($logger, $reservationRepository, $dateString = null) {
         if (!$dateString) {
             $dateString = 'today +1 Weekday'; // skip over weekends
         }
@@ -45,7 +45,7 @@ class CheckMenuController extends Controller
             'dishes' => $dishes
         ]);
 
-        $telegramService = new TelegramService($logger);
+        $telegramService = new TelegramService($logger, $reservationRepository);
         $telegramService->publishMenu($dishes, $date);
     }
 }
