@@ -38,6 +38,13 @@ class Reservation
     /**
      * @var string
      *
+     * @ORM\Column(name="user_name", type="string", length=255)
+     */
+    private $userName;
+
+    /**
+     * @var string
+     *
      * @ORM\Column(name="dish", type="string", length=255)
      */
     private $dish;
@@ -99,6 +106,30 @@ class Reservation
     public function getUserId()
     {
         return $this->userId;
+    }
+
+    /**
+     * Set userName
+     *
+     * @param string $userName
+     *
+     * @return Reservation
+     */
+    public function setUserName($userName)
+    {
+        $this->userName = $userName;
+
+        return $this;
+    }
+
+    /**
+     * Get userName
+     *
+     * @return string
+     */
+    public function getUserName()
+    {
+        return $this->userName;
     }
 
     /**

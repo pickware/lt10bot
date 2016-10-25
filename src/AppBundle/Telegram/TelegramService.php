@@ -2,8 +2,10 @@
 
 namespace AppBundle\Telegram;
 
+use AppBundle\Entity\Reservation;
 use DateTime;
 use GuzzleHttp\Client;
+use GuzzleHttp\Exception\ClientException;
 use IntlDateFormatter;
 use Monolog\Logger;
 
@@ -71,8 +73,7 @@ class TelegramService
         if ($buttons) {
             $body['reply_markup'] = ['inline_keyboard' => [$buttons]];
         }
-        $this->client->post('sendMessage',
-            ['json' => $body]);
+        $this->client->post('sendMessage', ['json' => $body]);
     }
 
     /**
@@ -86,7 +87,29 @@ class TelegramService
             'callback_query_id' => (integer)$callbackQuery->id,
             'text' => $notificationText
         ];
-        $this->client->post('answerCallbackQuery',
-            ['json' => $body]);
+        $this->client->post('answerCallbackQuery', ['json' => $body]);
+    }
+
+    /**
+     * Sends a lunch reminder to the person who made a reservation.
+     * @param Reservation $reservation the reservation to send a reminder for
+     */
+    function sendLunchReminder($reservation)
+    {
+        try {
+            $userName = $reservation->getUserName();
+            $userId = $reservation->getUserId();
+            $dish = $reservation->getDish();
+            $message = "Hallo ${userName}! Du hast für heute Gericht ${dish} im LT10 bestellt. "
+                . "Vergiss nicht, essen zu gehen! \u{1f37D} \u{1f642}";
+            $body = [
+                'chat_id' => (integer)$reservation->getUserId(),
+                'text' => $message
+            ];
+            $this->client->post('sendMessage', ['json' => $body]);
+        } catch (ClientException $e) {
+            $this->logger->info("Cannot deliver exception to user ${userId} (${userName}), "
+                . "probably because they block the bot.");
+        }
     }
 }

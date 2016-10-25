@@ -71,6 +71,7 @@ class TelegramWebhookController extends Controller
     {
         $logger = $this->get('logger');
         $user = $callbackQuery->from->id;
+        $userName = $callbackQuery->from->first_name;
 
         list($dish, $date) = $this->parseReservationToken($callbackQuery->data);
         $oldReservation = $this->findOldReservation($user, $date);
@@ -86,7 +87,7 @@ class TelegramWebhookController extends Controller
         if (!$dish) {
             return $this->handleCancellation($user, $date, $oldReservation);
         }
-        return $this->handleMakeOrUpdateReservation($user, $date, $dish, $oldReservation);
+        return $this->handleMakeOrUpdateReservation($user, $userName, $date, $dish, $oldReservation);
     }
 
     /**
@@ -124,12 +125,13 @@ class TelegramWebhookController extends Controller
     /**
      * Make a new reservation or change the dish of an existing reservation.
      * @param string $user the user who wants to change their reservation
+     * @param string $userName the friendly name of the user
      * @param string $date the date for which to change the reservation
      * @param string $dish the new dish to set
      * @param Reservation $oldReservation the old reservation entity from the database
      * @return string a notification to show to the Telegram user
      */
-    private function handleMakeOrUpdateReservation($user, $date, $dish, $oldReservation)
+    private function handleMakeOrUpdateReservation($user, $userName, $date, $dish, $oldReservation)
     {
         $logger = $this->get('logger');
         $logger->info("user ${user} wants to reserve dish ${dish} for ${date}.");
@@ -144,7 +146,7 @@ class TelegramWebhookController extends Controller
             $oldDish = $oldReservation->getDish();
             $logger->info("user ${user} is updating his reservation from ${oldDish} to ${dish} for ${date}.");
             $this->deleteReservation($oldReservation);
-            $this->recordReservation($user, $date, $dish);
+            $this->recordReservation($user, $userName, $date, $dish);
             return 'Okay, ich habe deine Reservierung aktualisiert!';
         }
 
@@ -152,20 +154,22 @@ class TelegramWebhookController extends Controller
             return 'Das hatte ich dir schon bestellt. Scheinst dich ja sehr darauf zu freuen! :)';
         }
 
-        $this->recordReservation($user, $date, $dish);
+        $this->recordReservation($user, $userName, $date, $dish);
         return 'Cool, dein Gericht ist bestellt!';
     }
 
     /**
      * Saves a new reservation to the database.
      * @param string $user the user who is reserving
+     * @param string $userName the name of the user who is reserving, used for the reminder message
      * @param string $date the date of the reservation
      * @param string $dish the reserved dish
      */
-    private function recordReservation($user, $date, $dish)
+    private function recordReservation($user, $userName, $date, $dish)
     {
         $reservation = new Reservation();
         $reservation->setUserId($user);
+        $reservation->setUserName($userName);
         $reservation->setMenuDate($date);
         $reservation->setDish($dish);
         $em = $this->getDoctrine()->getManager();
