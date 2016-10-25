@@ -3,10 +3,14 @@
 namespace AppBundle\Scraper;
 
 use Exception;
+use DateTime;
 use Goutte\Client;
 use Symfony\Component\DomCrawler\Crawler;
+use Symfony\Component\Validator\Constraints\Date;
 
-class LT10ServiceException extends Exception {}
+class LT10ServiceException extends Exception
+{
+}
 
 /**
  * Class LT10Service
@@ -18,7 +22,6 @@ class LT10ServiceException extends Exception {}
 class LT10Service
 {
     const ENDPOINT = 'http://kantine.lt10.de/menu';
-    const REQUESTED_DATE = 'morgen';
     private $client;
     private $userName;
     private $password;
@@ -38,9 +41,10 @@ class LT10Service
 
     /**
      * Update the total number of reservations for a single dish
-     * @param $date the date of the reservation
-     * @param $dish the dish for which to change the number of reservations
-     * @param $numReservations how many reservations to make
+     * @param string $date the date of the reservation
+     * @param string $dish the dish for which to change the number of reservations
+     * @param integer $numReservations how many reservations to make
+     * @throws LT10ServiceException if the maximum number of reservations was exceeded
      */
     public function updateDishReservations($date, $dish, $numReservations)
     {
@@ -59,14 +63,30 @@ class LT10Service
     }
 
     /**
-     * Scrape tomorrow's dishes
-     * @return array
+     * Checks whether reservations are still open for a particular date.
+     * @param string $date the date of the reservation
+     * @param string $dish the dish for which to change the number of reservations
+     * @return bool true iff reservations can still be modified
      */
-    public function getDishesForTomorrow()
+    public function canUpdateDishReservations($date, $dish)
     {
         $this->client = new Client();
         $this->login();
-        return $this->parseDay();
+        $submitButton = $this->crawler->selectButton('submit');
+        $reservationForm = $submitButton->form();
+        return $reservationForm->has("${date}_${dish}_count");
+    }
+
+    /**
+     * Scrape dishes for a date.
+     * @param DateTime $date the date for which to scrape dishes
+     * @return array the scraped dishes
+     */
+    public function getDishesForDate($date)
+    {
+        $this->client = new Client();
+        $this->login();
+        return $this->parseDay($date);
     }
 
     /**
@@ -90,18 +110,46 @@ class LT10Service
      * Finds and parses the correct day (i.e. tomorrow)
      * @return array
      */
-    private function parseDay()
+    private function parseDay($date)
     {
+        $dateDescription = $this->getRelativeDateDescription($date);
+        $this->logger->info("Filtering dishes for day ${dateDescription}.");
         return $this->crawler
             ->filter('.day')
-            ->reduce(function (Crawler $day) {
+            ->reduce(function (Crawler $day) use ($dateDescription) {
                 $date = $day->filter('p.date')->text();
-                return $date === static::REQUESTED_DATE;
+                return $date === $dateDescription;
             })
             ->filter('.menu')
-            ->each(function(Crawler $dish) {
+            ->each(function (Crawler $dish) {
                 return $this->parseDish($dish);
             });
+    }
+
+    /**
+     * Returns a date formatted relatively to today as on http://kantine.lt10.de/menu
+     * @param DateTime $date the date to format
+     * @return string "heute", "morgen" or a date formatted like "Thu, 27/Oct"
+     */
+    private function getRelativeDateDescription($date)
+    {
+        $today = new DateTime('today');
+        $date->setTime(0, 0, 0);
+        $dateDifference = $today->diff($date, false);
+//        Make $daysBetween negative when $date is before $today
+        $daysBetween = $dateDifference->days * (1 - 2 * $dateDifference->invert);
+        $invert = $dateDifference->invert;
+        $this->logger->info("date difference: ${daysBetween}, invert=${invert}.");
+        switch ($daysBetween) {
+            case 0:
+                return 'heute';
+
+            case 1:
+                return 'morgen';
+
+            default:
+                return $date->format('D, j/M');
+        }
     }
 
     /**

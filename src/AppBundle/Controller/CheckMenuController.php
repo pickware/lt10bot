@@ -2,11 +2,14 @@
 
 namespace AppBundle\Controller;
 
+use DateTime;
 use AppBundle\Scraper\LT10Service;
 use AppBundle\Telegram\TelegramService;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Route;
 use Symfony\Bundle\FrameworkBundle\Controller\Controller;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Validator\Constraints\Date;
 
 class CheckMenuController extends Controller
 {
@@ -14,29 +17,35 @@ class CheckMenuController extends Controller
      * Scrapes tomorrow's menu from the LT10 website and sends it to Telegram.
      * This route should be called once a day at 18:00.
      *
-     * TODO add security token
      * @Route("/checkmenu")
      */
-    public function checkMenu()
+    public function checkMenu(Request $request)
     {
-        static::fetchAndShowMenu($this->get('logger'));
+        $logger = $this->get('logger');
+        $dateString = $request->query->get('date') ?: null;
+        $logger->info("date string passed in: ${dateString}.");
+        static::fetchAndShowMenu($logger, $dateString);
         return new Response(Response::HTTP_NO_CONTENT);
     }
 
     /**
      * Scrapes tomorrow's menu from the LT10 website and sends it to Telegram.
+     * @param Logger $logger a logger to use
+     * @param null|string $dateString a string represenation of the date to fetch the menu for
      */
-    public static function fetchAndShowMenu($logger) {
-        $lt10service = new LT10Service($logger);
-        $dishes = $lt10service->getDishesForTomorrow();
+    public static function fetchAndShowMenu($logger, $dateString = null) {
+        if (!$dateString) {
+            $dateString = 'today +1 Weekday'; // skip over weekends
+        }
+        $date = new DateTime($dateString);
+        $lt10Service = new LT10Service($logger);
+        $dishes = $lt10Service->getDishesForDate($date);
 
         $logger->info('Crawl result:', [
             'dishes' => $dishes
         ]);
 
-        if (!empty($dishes)) {
-            $telegramService = new TelegramService($logger);
-            $telegramService->publishMenu($dishes);
-        }
+        $telegramService = new TelegramService($logger);
+        $telegramService->publishMenu($dishes, $date);
     }
 }

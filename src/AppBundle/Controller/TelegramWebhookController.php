@@ -75,9 +75,11 @@ class TelegramWebhookController extends Controller
         list($dish, $date) = $this->parseReservationToken($callbackQuery->data);
         $oldReservation = $this->findOldReservation($user, $date);
 
-        $today = (new DateTime('now'))->format('Y-m-d');
-        if ($today >= $date) {
-            $logger->info("User ${user} tried to make, modify or cancel a reservation for ${date}, which is in the past.");
+        $lt10service = new LT10Service($this->get('logger'));
+        $canUpdate = $dish || $oldReservation ? $lt10service->canUpdateDishReservations($date, $dish ?: $oldReservation->getDish()) : true;
+        if (!$canUpdate) {
+            $logger->info("User ${user} tried to make, modify or cancel a reservation for ${date}, "
+                . "but reservations were already closed.");
             return 'Ich kann die Reservierung jetzt nicht mehr ändern, sorry.';
         }
 
@@ -224,18 +226,24 @@ class TelegramWebhookController extends Controller
      * @param string $text the text of the message
      * @param string $chatId the id of the chat where the message was received
      */
-    private function handleMessage($text, $chatId) {
+    private function handleMessage($text, $chatId)
+    {
         $logger = $this->get('logger');
         $expectedChatId = getenv('TELEGRAM_CHAT_ID');
         if ($chatId != $expectedChatId) {
             $logger->warn("Command received from illegal chat {$chatId} (expected: ${expectedChatId}).");
             return;
         }
-        $logger->info("Processing message ${text}.");
-        if ($text === '/menu' || $text === '/menu@LT10Bot') {
+        $parts = explode(' ', $text);
+        $logger->info("Processing message ${text}.", ['parts' => $parts]);
+        if (!empty($parts) && ($parts[0] === '/menu' || $parts[0] === '/menu@LT10Bot')) {
+            $date = null;
+            if (array_key_exists(1, $parts)) {
+                $date = $parts[1];
+            }
             $logger->warn("Command received from illegal chat {$chatId}.");
             $logger->info("Menu requested in chat {$chatId}.");
-            CheckMenuController::fetchAndShowMenu($logger);
+            CheckMenuController::fetchAndShowMenu($logger, $date);
         }
     }
 }
