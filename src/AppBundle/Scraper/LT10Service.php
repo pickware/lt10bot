@@ -114,7 +114,7 @@ class LT10Service
     {
         $dateDescription = $this->getRelativeDateDescription($date);
         $this->logger->info("Filtering dishes for day ${dateDescription}.");
-        return $this->crawler
+        return array_filter($this->crawler
             ->filter('.day')
             ->reduce(function (Crawler $day) use ($dateDescription) {
                 $date = $day->filter('p.date')->text();
@@ -123,7 +123,7 @@ class LT10Service
             ->filter('.menu')
             ->each(function (Crawler $dish) {
                 return $this->parseDish($dish);
-            });
+            }));
     }
 
     /**
@@ -164,10 +164,18 @@ class LT10Service
             return false;
         }
 
+        $description = trim($dishChildNodes->item(1)->textContent);
+
+        if (mb_strlen($description) < 10) {
+            return false;
+        }
+
         $result = [
-            'description' => trim($dishChildNodes->item(1)->textContent),
+            'description' => $description,
             'tags' => []
         ];
+
+
 
         for ($i = 3; $i < $dishChildNodes->length - 1; $i++) {
             $text = trim($dishChildNodes->item($i)->textContent);

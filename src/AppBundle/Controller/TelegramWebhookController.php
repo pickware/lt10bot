@@ -246,7 +246,6 @@ class TelegramWebhookController extends Controller
             if (array_key_exists(1, $parts)) {
                 $date = $parts[1];
             }
-            $logger->warn("Command received from illegal chat {$chatId}.");
             $logger->info("Menu requested in chat {$chatId}.");
             CheckMenuController::fetchAndShowMenu($logger, $this->getDoctrine()->getRepository('AppBundle:Reservation'),
                 $date);
