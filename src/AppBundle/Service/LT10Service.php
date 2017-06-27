@@ -1,23 +1,18 @@
 <?php
+namespace AppBundle\Service;
 
-namespace AppBundle\Scraper;
-
+use AppBundle\Entity\Dish;
+use Doctrine\ORM\EntityManager;
 use Exception;
 use DateTime;
 use Goutte\Client;
+use Psr\Log\LoggerInterface as Logger;
 use Symfony\Component\DomCrawler\Crawler;
-use Symfony\Component\Validator\Constraints\Date;
-
-class LT10ServiceException extends Exception
-{
-}
 
 /**
  * Class LT10Service
  *
  * Handles communication with the functionality of http://kantine.lt10.de/menus.
- *
- * @package AppBundle\Scraper
  */
 class LT10Service
 {
@@ -25,8 +20,9 @@ class LT10Service
     private $client;
     private $userName;
     private $password;
+    private $entityManager;
 
-    function __construct($logger)
+    public function __construct(Logger $logger, EntityManager $entityManager)
     {
         $this->logger = $logger;
         $this->userName = getenv('LT10_USER');
@@ -37,29 +33,33 @@ class LT10Service
         if (!$this->password) {
             throw new Exception('LT10_PASSWORD must be set');
         }
+        $this->entityManager = $entityManager;
     }
 
     /**
-     * Update the total number of reservations for a single dish
-     * @param string $date the date of the reservation
-     * @param string $dish the dish for which to change the number of reservations
-     * @param integer $numReservations how many reservations to make
-     * @throws LT10ServiceException if the maximum number of reservations was exceeded
+     * Update the total number of reservations for a single dish.
+     *
+     * @param Dish $dish the dish for which to change the number of reservations
+     * @param int $desiredAmount
      */
-    public function updateDishReservations($date, $dish, $numReservations)
+    public function updateDishReservations(Dish $dish, $desiredAmount)
     {
-        if ($numReservations >= 5) {
-            throw new LT10ServiceException("Maximum number of reservations exceeded.");
-        }
         $this->client = new Client();
         $this->login();
         $submitButton = $this->crawler->selectButton('submit');
         $reservationForm = $submitButton->form();
         $reservationForm->setValues([
-            "${date}_${dish}_count" => $numReservations
+            $dish->getElementIdentifier() => $desiredAmount
         ]);
-        $resultCrawler = $this->client->submit($reservationForm);
-        $this->logger->info("Updated reservations on ${date}: dish ${dish} is reserved ${numReservations} times.");
+        $this->client->submit($reservationForm);
+        $this->logger->info(
+            sprintf(
+                'Updated reservations of %s (%s) to a total of %d',
+                $dish->getElementIdentifier(),
+                $dish->getDescription(),
+                $desiredAmount
+            )
+        );
     }
 
     /**
@@ -74,6 +74,7 @@ class LT10Service
         $this->login();
         $submitButton = $this->crawler->selectButton('submit');
         $reservationForm = $submitButton->form();
+
         return $reservationForm->has("${date}_${dish}_count");
     }
 
@@ -84,9 +85,27 @@ class LT10Service
      */
     public function getDishesForDate($date)
     {
+        $dishRepository = $this->entityManager->getRepository(Dish::class);
+        $dishes = $dishRepository->findBy(
+            [
+                'date' => $date
+            ]
+        );
+        if (!empty($dishes)) {
+            return $dishes;
+        }
+
+        // No dishes in the DB for that date - try to scrape them from the website
         $this->client = new Client();
         $this->login();
-        return $this->parseDay($date);
+        $dishes = $this->parseDay($date);
+
+        foreach ($dishes as $dish) {
+            $this->entityManager->persist($dish);
+        }
+        $this->entityManager->flush($dishes);
+
+        return $dishes;
     }
 
     /**
@@ -98,10 +117,12 @@ class LT10Service
         $loginButton = $this->crawler->selectButton('login');
         if ($loginButton->count() !== 0) {
             $loginForm = $loginButton->form();
-            $loginForm->setValues([
-                'u' => $this->userName,
-                'p' => $this->password
-            ]);
+            $loginForm->setValues(
+                [
+                    'u' => $this->userName,
+                    'p' => $this->password
+                ]
+            );
             $this->crawler = $this->client->submit($loginForm);
         }
     }
@@ -114,20 +135,33 @@ class LT10Service
     {
         $dateDescription = $this->getRelativeDateDescription($date);
         $this->logger->info("Filtering dishes for day ${dateDescription}.");
-        return array_filter($this->crawler
-            ->filter('.day')
-            ->reduce(function (Crawler $day) use ($dateDescription) {
-                $date = $day->filter('p.date')->text();
-                return $date === $dateDescription;
-            })
-            ->filter('.menu')
-            ->each(function (Crawler $dish) {
-                return $this->parseDish($dish);
-            }));
+        $i = 0;
+
+        return array_filter(
+            $this->crawler
+                ->filter('.day')
+                ->reduce(
+                    function (Crawler $day) use ($dateDescription) {
+                        $date = $day->filter('p.date')->text();
+
+                        return $date === $dateDescription;
+                    }
+                )
+                ->filter('.menu')
+                ->each(
+                    function (Crawler $dish) use ($date, &$i) {
+                        $result = $this->parseDish($dish, $date, $i);
+                        $i++;
+
+                        return $result;
+                    }
+                )
+        );
     }
 
     /**
      * Returns a date formatted relatively to today as on http://kantine.lt10.de/menu
+     *
      * @param DateTime $date the date to format
      * @return string "heute", "morgen" or a date formatted like "Thu, 27/Oct"
      */
@@ -136,7 +170,8 @@ class LT10Service
         $today = new DateTime('today');
         $date->setTime(0, 0, 0);
         $dateDifference = $today->diff($date, false);
-//        Make $daysBetween negative when $date is before $today
+
+        // Make $daysBetween negative when $date is before $today
         $daysBetween = $dateDifference->days * (1 - 2 * $dateDifference->invert);
         $invert = $dateDifference->invert;
         $this->logger->info("date difference: ${daysBetween}, invert=${invert}.");
@@ -155,10 +190,23 @@ class LT10Service
     /**
      * Parse description, cost, cooks and additional tags from a dish (i.e. div.menu html element)
      * @param Crawler $dish
-     * @return array|bool
+     * @param DateTime $date
+     * @param int $i
+     * @return Dish|bool
      */
-    private function parseDish(Crawler $dish)
+    private function parseDish(Crawler $dish, DateTime $date, int $i)
     {
+        $result = new Dish();
+        $result->setDate($date);
+
+        $result->setElementIdentifier(
+            sprintf(
+                '%s_%s_count',
+                $date->format('Y-m-d'),
+                chr(ord('A') + $i)
+            )
+        );
+
         $dishChildNodes = $dish->getNode(0)->childNodes;
         if ($dishChildNodes->length <= 2) {
             return false;
@@ -170,25 +218,19 @@ class LT10Service
             return false;
         }
 
-        $result = [
-            'description' => $description,
-            'tags' => []
-        ];
-
-
+        $result->setDescription($description);
 
         for ($i = 3; $i < $dishChildNodes->length - 1; $i++) {
             $text = trim($dishChildNodes->item($i)->textContent);
             if ($text) {
                 if (mb_substr($text, 0, 1) === '€') {
-                    $result['price'] = (float)mb_substr($text, 1);
+                    $result->setPrice((float)mb_substr($text, 1));
                 } elseif (mb_substr($text, 0, 3) === 'by ') {
-                    $result['cook'] = mb_substr($text, 3);
-                } else {
-                    $result['tags'][] = trim($dishChildNodes->item($i)->textContent);
+                    $result->setCook(mb_substr($text, 3));
                 }
             }
         }
+
         return $result;
     }
 }

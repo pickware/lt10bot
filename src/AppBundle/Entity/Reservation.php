@@ -8,7 +8,7 @@ use Doctrine\ORM\Mapping as ORM;
  * The fact that a particular Telegram user reserved a particular dish on a particular date.
  *
  * @ORM\Table(name="reservation")
- * @ORM\Entity(repositoryClass="AppBundle\Repository\ReservationRepository")
+ * @ORM\Entity
  */
 class Reservation
 {
@@ -22,11 +22,18 @@ class Reservation
     private $id;
 
     /**
-     * @var string
+     * @var Dish
      *
-     * @ORM\Column(name="menu_date", type="string", length=255)
+     * @ORM\ManyToOne(targetEntity="Dish", inversedBy="reservations")
      */
-    private $menuDate;
+    private $dish;
+
+    /**
+     * @var int
+     *
+     * @ORM\Column(name="amount", type="integer")
+     */
+    private $amount;
 
     /**
      * @var string
@@ -43,16 +50,6 @@ class Reservation
     private $userName;
 
     /**
-     * @var string
-     *
-     * @ORM\Column(name="dish", type="string", length=255)
-     */
-    private $dish;
-
-
-    /**
-     * Get id
-     *
      * @return int
      */
     public function getId()
@@ -61,46 +58,46 @@ class Reservation
     }
 
     /**
-     * Set menuDate
-     *
-     * @param string $menuDate
-     *
-     * @return Reservation
+     * @param int $id
      */
-    public function setMenuDate($menuDate)
+    public function setId($id)
     {
-        $this->menuDate = $menuDate;
-
-        return $this;
+        $this->id = $id;
     }
 
     /**
-     * Get menuDate
-     *
-     * @return string
+     * @return Dish
      */
-    public function getMenuDate()
+    public function getDish()
     {
-        return $this->menuDate;
+        return $this->dish;
     }
 
     /**
-     * Set userName
-     *
-     * @param string $userId
-     *
-     * @return Reservation
+     * @param Dish $dish
      */
-    public function setUserId($userId)
+    public function setDish($dish)
     {
-        $this->userId = $userId;
-
-        return $this;
+        $this->dish = $dish;
     }
 
     /**
-     * Get userId
-     *
+     * @return int
+     */
+    public function getAmount()
+    {
+        return $this->amount;
+    }
+
+    /**
+     * @param int $amount
+     */
+    public function setAmount($amount)
+    {
+        $this->amount = $amount;
+    }
+
+    /**
      * @return string
      */
     public function getUserId()
@@ -109,22 +106,14 @@ class Reservation
     }
 
     /**
-     * Set userName
-     *
-     * @param string $userName
-     *
-     * @return Reservation
+     * @param string $userId
      */
-    public function setUserName($userName)
+    public function setUserId($userId)
     {
-        $this->userName = $userName;
-
-        return $this;
+        $this->userId = $userId;
     }
 
     /**
-     * Get userName
-     *
      * @return string
      */
     public function getUserName()
@@ -133,36 +122,11 @@ class Reservation
     }
 
     /**
-     * Set dish
-     *
-     * @param string $dish
-     *
-     * @return Reservation
+     * @param string $userName
      */
-    public function setDish($dish)
+    public function setUserName($userName)
     {
-        $this->dish = $dish;
-
-        return $this;
-    }
-
-    /**
-     * Get dish
-     *
-     * @return string
-     */
-    public function getDish()
-    {
-        return $this->dish;
-    }
-
-    function __toString()
-    {
-        $id = $this->id;
-        $menuDate = $this->menuDate;
-        $userId = $this->userId;
-        $dish = $this->dish;
-        return "Reservation(id: ${id}, menuDate: ${menuDate}, userId: ${userId}, dish: ${dish})";
+        $this->userName = $userName;
     }
 
 }

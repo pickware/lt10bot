@@ -1,15 +1,13 @@
 <?php
-
 namespace AppBundle\Controller;
 
+use AppBundle\Entity\Dish;
+use AppBundle\Service\SlackBotService;
 use DateTime;
-use AppBundle\Scraper\LT10Service;
-use AppBundle\Telegram\TelegramService;
+use Doctrine\ORM\EntityManager;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Route;
 use Symfony\Bundle\FrameworkBundle\Controller\Controller;
-use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\Validator\Constraints\Date;
 
 class LunchReminderController extends Controller
 {
@@ -18,18 +16,19 @@ class LunchReminderController extends Controller
      *
      * @Route("/lunchreminder")
      */
-    public function remindLunch()
+    public function lunchReminderAction(EntityManager $entityManager, SlackBotService $slackBotService)
     {
-        $logger = $this->get('logger');
-        $dateString = (new DateTime('today'))->format('Y-m-d');
-        $reservations = $this->getDoctrine()->getRepository('AppBundle:Reservation')->findBy([
-            'menuDate' => $dateString
-        ]);
-        $logger->info("Sending reminders for reservations on ${dateString}.", ['reservations' => $reservations]);
-        $telegramService = new TelegramService($logger, $this->getDoctrine()->getRepository('AppBundle:Reservation'));
-        foreach ($reservations as $reservation) {
-            $telegramService->sendLunchReminder($reservation);
+        $dishes = $entityManager->getRepository(Dish::class)->findBy(
+            [
+                'date' => new DateTime()
+            ]
+        );
+        foreach ($dishes as $dish) {
+            foreach ($dish->getReservations() as $reservation) {
+                $slackBotService->sendLunchReminder($reservation);
+            }
         }
+
         return new Response(Response::HTTP_NO_CONTENT);
     }
 }

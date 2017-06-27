@@ -19,6 +19,7 @@ monolog:
             level: debug
             channels: [!event]
         console:
+            level: debug
             type:   console
             channels: [!event, !doctrine]
         # uncomment to get logging in your browser
@@ -29,6 +30,3 @@ monolog:
         #chromephp:
         #    type:   chromephp
         #    level:  info
-
-#swiftmailer:
-#    delivery_address: me@example.com

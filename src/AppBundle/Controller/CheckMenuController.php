@@ -1,55 +1,48 @@
 <?php
-
 namespace AppBundle\Controller;
 
+use AppBundle\Service\LT10Service;
+use AppBundle\Service\SlackBotService;
 use DateTime;
-use AppBundle\Scraper\LT10Service;
-use AppBundle\Telegram\TelegramService;
+use Psr\Log\LoggerInterface as Logger;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Route;
 use Symfony\Bundle\FrameworkBundle\Controller\Controller;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\Validator\Constraints\Date;
 
 class CheckMenuController extends Controller
 {
+
     /**
-     * Scrapes tomorrow's menu from the LT10 website and sends it to Telegram.
+     * Scrapes tomorrow's menu from the LT10 website (if this has not happened yet) and sends it to Slack.
+     *
      * This route should be called once a day at 18:00.
      *
      * @Route("/checkmenu")
+     * @param Request $request
+     * @param LT10Service $lt10Service
+     * @return Response
      */
-    public function checkMenu(Request $request)
+    public function checkMenu(Request $request, Logger $logger, LT10Service $lt10Service, SlackBotService $slackBotService)
     {
-        $logger = $this->get('logger');
+        // Figure out which date to check for
         $dateString = $request->query->get('date') ?: null;
         $logger->info("date string passed in: ${dateString}.");
-        static::fetchAndShowMenu($logger, $this->getDoctrine()->getRepository('AppBundle:Reservation'), $dateString, true);
-        return new Response(Response::HTTP_NO_CONTENT);
-    }
-
-    /**
-     * Scrapes tomorrow's menu from the LT10 website and sends it to Telegram.
-     * @param Logger $logger a logger to use
-     * @param null|string $dateString a string represenation of the date to fetch the menu for
-     */
-    public static function fetchAndShowMenu($logger, $reservationRepository, $dateString = null, $onlyNonEmpty = false) {
         if (!$dateString) {
             $dateString = 'today +1 Weekday'; // skip over weekends
         }
         $date = new DateTime($dateString);
-        $lt10Service = new LT10Service($logger);
+
+        // Get the dishes for that date and announce them in Slack
         $dishes = $lt10Service->getDishesForDate($date);
+        $logger->info(
+            'Publishing list of dishes:',
+            [
+                'dishes' => $dishes
+            ]
+        );
+        $slackBotService->publishMenu($dishes, $date);
 
-        $logger->info('Crawl result:', [
-            'dishes' => $dishes
-        ]);
-
-        if ($onlyNonEmpty && empty($dishes)) {
-            return;
-        }
-
-        $telegramService = new TelegramService($logger, $reservationRepository);
-        $telegramService->publishMenu($dishes, $date);
+        return new Response(Response::HTTP_NO_CONTENT);
     }
 }
