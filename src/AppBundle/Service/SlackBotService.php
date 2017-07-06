@@ -173,5 +173,4 @@ class SlackBotService
             $this->logger->info("Cannot deliver lunch reminder to user ${userName}");
         }
     }
-
 }
