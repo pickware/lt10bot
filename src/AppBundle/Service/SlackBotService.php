@@ -72,6 +72,7 @@ class SlackBotService
                     'response_type' => 'in_channel',
                     'as_user' => false,
                     'username' => 'LT10 Bot',
+                    'icon_emoji' => ':fork_and_knife:',
                     'attachments' => json_encode($attachments)
                 ]
             ]
@@ -163,7 +164,8 @@ class SlackBotService
                             . "Vergiss nicht, essen zu gehen! \u{1f37D} \u{1f642}",
                         'response_type' => 'in_channel',
                         'as_user' => false,
-                        'username' => 'LT10 Bot'
+                        'username' => 'LT10 Bot',
+                        'icon_emoji' => ':fork_and_knife:'
                     ]
                 ]
             );
@@ -171,5 +173,4 @@ class SlackBotService
             $this->logger->info("Cannot deliver lunch reminder to user ${userName}");
         }
     }
-
 }
