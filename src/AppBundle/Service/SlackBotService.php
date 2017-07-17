@@ -50,9 +50,10 @@ class SlackBotService
         $localeFormattedDate = $dateFormatter->format($date);
         $isoFormattedDate = $date->format('Y-m-d');
         $this->logger->info("isoFormattedDate = ${isoFormattedDate}");
-        $attachments = [];
+        $attachments = null;
         if (empty($dishes)) {
-            $text = "Für ${localeFormattedDate} habe ich leider kein Menü gefunden \u{1f625}";
+            // Ignore empty menus
+            return;
         } else {
             $text = "Am ${localeFormattedDate} gibt es folgende Gerichte im LT10:\n";
             $attachments = array_map(

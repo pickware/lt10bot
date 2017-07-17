@@ -25,6 +25,8 @@ class CheckMenuController extends Controller
      */
     public function checkMenu(Request $request, Logger $logger, LT10Service $lt10Service, SlackBotService $slackBotService)
     {
+        $logger->info('DayOfWeek: ' . (new DateTime())->format('w'));
+
         // Figure out which date to check for
         $dateString = $request->query->get('date') ?: null;
         $logger->info("date string passed in: ${dateString}.");
