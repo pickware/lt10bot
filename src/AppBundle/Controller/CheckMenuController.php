@@ -25,7 +25,11 @@ class CheckMenuController extends Controller
      */
     public function checkMenu(Request $request, Logger $logger, LT10Service $lt10Service, SlackBotService $slackBotService)
     {
-        $logger->info('DayOfWeek: ' . (new DateTime())->format('w'));
+        $dayOfWeek = (new DateTime())->format('w');
+        if ($dayOfWeek == '5' || $dayOfWeek == '6') {
+            // Don't post dishes on friday or saturday, only post monday's dishes on sunday
+            return new Response(Response::HTTP_NO_CONTENT);
+        }
 
         // Figure out which date to check for
         $dateString = $request->query->get('date') ?: null;
